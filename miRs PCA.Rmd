@@ -1,0 +1,158 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/alexisjimenez/Desktop")) 
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#load ancestry (ADMIXTURE Q file)
+ancestry_data <- read.table("/Users/alexisjimenez/Desktop/pruned_data.3.Q", header=FALSE)
+
+# Load fam file 
+fam_data <- read.table("/Users/alexisjimenez/Desktop/pruned_data.fam", header=FALSE)
+colnames(fam_data) <- c("Family_ID", "Sample", "Paternal_ID", "Maternal_ID", "Sex", "Phenotype")
+
+# Add family ID f
+ancestry_data <- cbind(Family_ID = fam_data$Family_ID, ancestry_data)
+
+# Rename ancestry columns to match Admixture groups
+colnames(ancestry_data) <- c("Family_ID", "South_Asian", "African", "European")
+
+```
+edit the fam file 
+```{r}
+
+library(stringr)
+
+# get rid of the array data in ID and only leave numeric 
+fam_data$Sample_ID <- str_extract(fam_data$Sample, "(?<=_)[0-9]+(?=_)")
+head(fam_data)
+
+# Reorder columns so that the column names match between file 
+fam_data <- fam_data[, c("Family_ID", "Sample_ID", setdiff(names(fam_data), c("Sample_ID", "Family_ID")))]
+
+head(fam_data)
+
+```
+
+```{r}
+#load miRNAs, I manually added the Family_IDs to a column to make it easier to merge the data 
+miRs <- read.csv("/Users/alexisjimenez/Desktop/miRs_with_FamilyID.csv")
+
+
+```
+
+
+```{r}
+library(dplyr)
+
+# Merge ancestry and  miRs by Family_ID
+merged_data <- inner_join(ancestry_data, miRs, by = "Family_ID")
+
+# Merge with fam_data to include any additional participant metadata
+merged_data <- inner_join(merged_data, fam_data, by = "Family_ID")
+
+head(merged_data)
+
+#colnames(merged_data)
+
+```
+
+```{r}
+# Remove duplicate columns from merging all the files 
+merged_data <- merged_data %>%
+  select(-c(Family_ID.1, Sample_ID.x, Sample_ID.y))
+
+
+colnames(merged_data)
+
+```
+```{r}
+# Get rid of non-numeric columns and only keep miRs
+miRNA_data <- merged_data %>%
+  select(-c(Family_ID, Sample, PTID, BOX_POSITION, MATERIAL, 
+            SONGLAB.BARCODE, DATEACQ, DATE.PURIFIED, PURIFIED.BY, 
+            whole.blood.est.vol..ml., NANODROP.DATE, ng.µL, 
+            X260.280, X260.230, DNA.STOCK.VOLUME..ML., DNA.YIELD..µg., 
+            dna.stock.vol.for.Illumina.array..µL., NOTES, 
+            Paternal_ID, Maternal_ID, Sex, Phenotype))
+
+#get rid of group columns 
+miRNA_data <- miRNA_data %>% select(-c(Group2, Group3))
+
+#get rid of the admixture columsn
+miRNA_data_pca <- miRNA_data %>%
+  select(-c(South_Asian, African, European))
+
+# convert everything to numeric 
+miRNA_data_pca <- data.frame(lapply(miRNA_data_pca, as.numeric))
+
+# Run PCA on miRNA expression data only
+pca_result <- prcomp(miRNA_data_pca, scale. = TRUE)
+
+
+```
+
+```{r}
+# Making a new dataframe with PCA results and ancestry proportions for visualization
+pca_components <- data.frame(pca_result$x, miRNA_data %>% select(South_Asian, African, European))
+
+```
+
+
+```{r}
+#making a PCA with the admixture groups allowing for overlap of Admixture groups 
+ggplot(pca_components, aes(PC1, PC2, color = as.factor(South_Asian))) +
+  geom_point() +
+  labs(color = "Admixture Group") +
+  xlab("PC1") +
+  ylab("PC2") +
+  ggtitle("PCA of miRNA Expression by Ancestry Group") +
+  theme_minimal()
+
+```
+```{r}
+
+
+```{r}
+# Create a new column for dominant ancestry group for no overlap of ancestry groups 
+miRNA_data <- miRNA_data %>%
+  mutate(Admixture_Group = case_when(
+    South_Asian > African & South_Asian > European ~ "South Asian",
+    African > South_Asian & African > European ~ "African",
+    European > South_Asian & European > African ~ "European",
+    TRUE ~ "Admixed" 
+  ))
+
+```
+
+```{r}
+# Merge PCA results with ancestry group labels
+pca_components <- data.frame(pca_result$x, Admixture_Group = miRNA_data$Admixture_Group)
+
+```
+
+```{r}
+library(ggplot2)
+
+#create a new PCA plot that assigns partipants to group they fit the best in 
+ggplot(pca_components, aes(x = PC1, y = PC2, color = Admixture_Group)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(title = "PCA of miRNA Expression by Admixture Group",
+       x = "Principal Component 1",
+       y = "Principal Component 2",
+       color = "Admixture Group") +
+  theme_minimal()
+
+```
+
+```{r}
+write.csv(merged_data, file = "/Users/alexisjimenez/Desktop/PRYSM_ADMIXTURE_miRNA.csv", row.names = FALSE)
+
+```
+

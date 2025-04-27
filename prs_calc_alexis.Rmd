@@ -1,0 +1,268 @@
+---
+title: "Polygenic risk score calculations"
+subtitle: Mar 10, 2025
+author: Alexis
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+------------------------------------------------------------------------
+
+#### **Load libraries**
+
+```{r message=FALSE}
+library(tidyverse)
+library(vcfR)
+library(stringr)
+library(missMethods)
+```
+
+#### **Read the filtered VCF file** 
+
+```{r}
+prs_snps <- read.vcfR("/Users/alexisjimenez/Desktop/misamples_prsvars.vcf")
+```
+
+##### look at data 
+
+```{r}
+print("Rows and columns with genotypes:")
+dim(prs_snps@gt)
+```
+
+```{r}
+head(colnames(prs_snps@gt), n=11)
+```
+
+```{r}
+head(prs_snps)
+```
+
+##### Process data
+
+
+```{r}
+prs_snps_gtdf <- as.data.frame(cbind(prs_snps@fix[, c("ID","REF","ALT")], 
+                                     prs_snps@gt[, -grep("FORMAT",colnames(prs_snps@gt))])) 
+```
+
+Remove the "exm-" prefix from SNP names
+
+```{r}
+prs_snps_gtdf$ID <- str_replace(prs_snps_gtdf$ID, "exm-", "")
+```
+
+
+
+```{r}
+recode_genotype <- function(genotype, ref, alt) {
+  genotype <- str_replace_all(genotype, "0", ref)
+  genotype <- str_replace_all(genotype, "1", alt)
+  return(genotype)
+}
+
+prs_snps_gtdf <- prs_snps_gtdf %>%
+  mutate(across(starts_with("400"), ~recode_genotype(., prs_snps_gtdf[,"REF"],
+                                                      prs_snps_gtdf[,"ALT"])))
+```
+
+##### Get risk allele information from Hivert et al. (Table 1)
+
+```{r}
+snp_riskinfo <- read.csv("/Users/alexisjimenez/Desktop/hivert_snp_riskinfo.csv")
+
+prs_snps_gtdf <- right_join(snp_riskinfo, prs_snps_gtdf, by="ID")
+```
+
+
+```{r}
+prs_snps_gtdf[which((prs_snps_gtdf$risk != prs_snps_gtdf$REF) &
+                      (prs_snps_gtdf$risk != prs_snps_gtdf$ALT)), 
+              c("ID","risk","nonrisk","REF","ALT")]
+```
+
+```{r}
+prs_snps_gtdf[which(prs_snps_gtdf$ID=="rs864745"), 
+              grep("400",colnames(prs_snps_gtdf))] <- 
+  str_replace_all(prs_snps_gtdf[which(prs_snps_gtdf$ID=="rs864745"), 
+              grep("400",colnames(prs_snps_gtdf))], "C", "G")
+
+prs_snps_gtdf[which(prs_snps_gtdf$ID=="rs864745"), 
+              grep("400",colnames(prs_snps_gtdf))] <- 
+  str_replace_all(prs_snps_gtdf[which(prs_snps_gtdf$ID=="rs864745"), 
+              grep("400",colnames(prs_snps_gtdf))], "T", "A")
+```
+
+
+##### Transform data to one row/participant
+
+```{r}
+prs_df <- as.data.frame(t(prs_snps_gtdf[, grep("400",colnames(prs_snps_gtdf))]))
+colnames(prs_df) <- prs_snps_gtdf$ID
+```
+
+##### Count the number of risk alleles present for each SNP 
+
+```{r}
+for(s in 1:nrow(prs_snps_gtdf)) {
+  rsid <- prs_snps_gtdf[s,"ID"]
+  riskallele <- prs_snps_gtdf[s,"risk"]
+  prs_df[, paste0(rsid,"_riskct")] <- str_count(prs_df[,rsid], riskallele)
+}
+```
+
+##### Impute SNPs if needed/appropriate
+
+```{r}
+## count missing snps 
+prs_df$prs_miss <- rowSums(is.na(prs_df[, 
+                                        grep("_riskct", colnames(prs_df))]), na.rm=TRUE)
+## check missing frequencies
+print("Missing SNP frequency distribution:")
+table(prs_df$prs_miss)
+```
+
+
+```{r}
+prs_df[, grep("_riskct",colnames(prs_df))] <- 
+  round(impute_mean(prs_df[, grep("_riskct",colnames(prs_df))], 
+                                         type = "columnwise", convert_tibble = FALSE), 0)
+```
+
+##### Calculate the sum of the risk alleles for each subject
+
+```{r}
+prs_df$prs_risksum <- rowSums(prs_df[, 
+                                     grep("_riskct", colnames(prs_df))], na.rm=TRUE)
+```
+
+#### **Summarize the PRS**
+
+
+```{r}
+summary(prs_df$prs_risksum)
+```
+
+##### Write PRS data to a file
+
+```{r warning=FALSE}
+
+write.csv(prs_df, file="DPP_HivertPRS_Prelim.csv", row.names=FALSE, quote=FALSE)
+```
+
+```{r}
+colnames(prs_df)
+```
+
+#### **Visualizations**
+```{r}
+hist(prs_df$prs_risksum, 
+     breaks = 30,
+     col = "skyblue", 
+     main = "Distribution of PRS Scores",
+     xlab = "PRS Risk Sum")
+
+```
+```{r}
+library(corrplot)
+
+riskct_data <- prs_df[, grep("_riskct$", names(prs_df))]
+
+cor_matrix <- cor(riskct_data, use = "pairwise.complete.obs")
+
+corrplot(cor_matrix, method = "color", tl.cex = 0.7)
+
+```
+```{r}
+#PRS distribution list
+hist(prs_df$prs_risksum, probability = TRUE, 
+     main = "PRS Distribution with Density Curve", col = "lightblue")
+lines(density(prs_df$prs_risksum, na.rm = TRUE), col = "darkblue", lwd = 2)
+
+```
+
+```{r}
+#creat a plot of top 20 
+top_individuals <- head(prs_df[order(-prs_df$prs_risksum), ], 20)
+barplot(top_individuals$prs_risksum, 
+        names.arg = rownames(top_individuals),
+        las = 2, col = "steelblue", 
+        main = "Top 20 PRS Individuals")
+
+```
+```{r}
+library(corrplot)
+
+
+vibrant_col <- colorRampPalette(c("blue", "white", "red"))(200)
+
+#plot
+corrplot(cor_matrix,
+         method = "color",
+         col = vibrant_col,       
+         tl.cex = 0.7,            
+         addgrid.col = "grey90",   
+         order = "hclust",     
+         tl.col = "black",         
+         cl.cex = 0.7             
+)
+
+```
+```{r}
+#heatplot with no snp lables
+library(corrplot)
+
+vibrant_col <- colorRampPalette(c("blue", "white", "red"))(200)
+
+corrplot(cor_matrix,
+         method = "color",
+         col = vibrant_col,
+         tl.cex = 0.7,
+         addgrid.col = "grey90",
+         order = "hclust",
+         tl.col = "black",
+         cl.cex = 0.7,
+         tl.pos = "n"  #
+)
+
+```
+
+```{r}
+#different color scheme
+install.packages("RColorBrewer")
+library(RColorBrewer)
+corrplot(cor_matrix,
+         method = "color",
+         col = colorRampPalette(brewer.pal(n = 9, name = "RdYlBu"))(200),
+         tl.cex = 0.7,
+         order = "AOE",
+         tl.col = "black")
+
+```
+```{r}
+#create quantiles
+prs_df$prs_quartile <- cut(prs_df$prs_risksum,
+                           breaks = quantile(prs_df$prs_risksum, probs = seq(0, 1, 0.25), na.rm = TRUE),
+                           include.lowest = TRUE,
+                           labels = c("Q1 (Lowest)", "Q2", "Q3", "Q4 (Highest)"))
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(prs_df, aes(x = prs_risksum)) +
+  geom_histogram(fill = "steelblue", bins = 30, alpha = 0.7) +
+  geom_vline(xintercept = quantile(prs_df$prs_risksum, probs = c(0.25, 0.5, 0.75)), 
+             linetype = "dashed", color = "red") +
+  labs(title = "Distribution of PRS with Quartile Cutoffs",
+       x = "PRS Risk Sum", y = "Count") +
+  theme_minimal()
+
+```
+```{r}
+
+```
+

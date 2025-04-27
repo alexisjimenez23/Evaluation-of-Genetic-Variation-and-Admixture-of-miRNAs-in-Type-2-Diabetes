@@ -1,0 +1,1193 @@
+---
+title: "PRYSM_PLINK_ASSOC_VISUALS"
+author: "Alexis Jimenez"
+date: "2025-01-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/alexisjimenez/Desktop"))
+```
+
+Load PLINK association data
+```{r}
+PLINK_assoc_data  <- read.csv("/Users/alexisjimenez/Desktop/qc_assoc_results.assoc.csv", header = TRUE)
+```
+
+
+```{r pressure, echo=FALSE}
+
+assoc_data_complete <- na.omit(PLINK_assoc_data)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# Filter out SNPs with low MAF (< 1%)
+#assoc_data_filtered <- assoc_data_complete[assoc_data_complete$F_A >= 0.05 & assoc_data_complete$F_U >= 0.05, ]
+
+
+```
+
+```{r}
+
+PLINK_assoc_data$FDR <- p.adjust(PLINK_assoc_data$P, method = "fdr")
+assoc_data_complete$FDR <- p.adjust(assoc_data_complete$P, method = "fdr")
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+fdr_threshold <- 0.05
+
+assoc_data_complete <- assoc_data_complete %>%
+  mutate(Significant = ifelse(FDR < fdr_threshold, "Yes", "No"))
+
+
+```
+
+
+
+```
+```
+
+```{r}
+assoc_data_complete$log10_P <- -log10(assoc_data_complete$P)
+
+
+threshold <- 1.3  # p < 0.05
+
+
+significant_snps <- assoc_data_complete[assoc_data_complete$log10_P >= threshold, ]
+
+
+head(significant_snps)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+PLINK_assoc_data <- PLINK_assoc_data %>%
+  filter(CHR %in% 1:24) %>%
+  mutate(Significant = ifelse(FDR < 0.05, "Yes", "No"))
+
+PLINK_assoc_data <- PLINK_assoc_data %>%
+  mutate(Significant = ifelse(FDR < 0.05, "Yes", "No"))
+
+ggplot(PLINK_assoc_data, aes(x = BP, y = -log10(P), color = as.factor(CHR))) +
+  geom_point(alpha = 0.8, size = 1) + 
+  scale_color_viridis(discrete = TRUE) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
+  labs(
+    title = "Manhattan Plot of SNP Associations",
+    x = "Genomic Position",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal() +
+  theme(legend.title = element_blank())  
+
+```
+
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+PLINK_assoc_data <- PLINK_assoc_data %>% 
+  mutate(Significant = ifelse(FDR < 0.05, "Yes", "No"))
+
+
+PLINK_assoc_data_labels <- PLINK_assoc_data %>% 
+  filter(-log10(P) > 4)
+
+ggplot(PLINK_assoc_data, aes(x = BP, y = -log10(P), color = as.factor(CHR))) +
+  geom_point(alpha = 0.8, size = 1) + 
+  scale_color_viridis(discrete = TRUE) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") + 
+  labs(
+    title = "Manhattan Plot of SNP Associations",
+    x = "Genomic Position",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  geom_text_repel(  
+    data = PLINK_assoc_data_labels, 
+    aes(label = SNP),  
+    size = 3, 
+    box.padding = 0.3, 
+    point.padding = 0.3, 
+    max.overlaps = 10,  
+    segment.color = "grey50"  
+  )
+
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr24_data <- assoc_data_complete %>%
+  filter(CHR == 24)
+
+
+ggplot(chr24_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  # Larger points for better visibility
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  # Custom colors
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") + 
+  labs(
+    title = "SNP Associations on Chromosome 24",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) 
+  theme(
+    legend.title = element_blank(),  
+    legend.text = element_text(size = 12),  
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10), 
+    axis.text.y = element_text(size = 10), 
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)  
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr23_data <- assoc_data_complete %>%
+  filter(CHR == 23)
+
+ggplot(chr23_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  # SNP points
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+
+  geom_text(data = chr23_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 23",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+
+
+
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr22_data <- assoc_data_complete %>%
+  filter(CHR == 22) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+ggplot(chr22_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  # Scatter plot
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  # Custom colors
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  # Add text labels for SNPs above -log10(P) > 4
+  geom_text(data = chr22_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 22",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Ensure Significant column is updated
+chr21_data <- assoc_data_complete %>%
+  filter(CHR == 21) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+# Plot with updated significance
+ggplot(chr21_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) + 
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  labs(
+    title = "SNP Associations on Chromosome 21",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr20_data <- assoc_data_complete %>%
+  filter(CHR == 20) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+ggplot(chr20_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+ 
+  geom_text(data = chr20_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 20",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr19_data <- assoc_data_complete %>%
+  filter(CHR == 19) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+ggplot(chr19_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  # Scatter plot points
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+
+  geom_text(data = chr19_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 19",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr18_data <- assoc_data_complete %>%
+  filter(CHR == 18) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+# Plot with SNP labels for -log10(P) > 4
+ggplot(chr18_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+  # Add text labels for SNPs with -log10(P) > 4
+  geom_text(data = chr18_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 18",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr17_data <- assoc_data_complete %>%
+  filter(CHR == 17) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+ggplot(chr17_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+  # Add text labels for SNPs with -log10(P) > 4
+  geom_text(data = chr17_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 17",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr16_data <- assoc_data_complete %>%
+  filter(CHR == 16) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+ggplot(chr16_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+  # Add text labels for SNPs with -log10(P) > 4
+  geom_text(data = chr16_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 16",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr15_data <- assoc_data_complete %>%
+  filter(CHR == 15) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+ggplot(chr15_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) + 
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") + 
+  
+
+  geom_text(data = chr15_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 15",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr14_data <- assoc_data_complete %>%
+  filter(CHR == 14) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No")) 
+
+
+ggplot(chr14_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  labs(
+    title = "SNP Associations on Chromosome 14",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr13_data <- assoc_data_complete %>%
+  filter(CHR == 13) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+gwas_threshold <- -log10(5e-8)
+
+
+ggplot(chr13_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) + 
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) + 
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") + 
+  
+  
+ 
+  geom_text(data = chr13_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 13",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr12_data <- assoc_data_complete %>%
+  filter(CHR == 12) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+gwas_threshold <- -log10(5e-8)
+
+ggplot(chr12_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+  
+  
+  geom_text(data = chr12_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 12",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+chr11_data <- assoc_data_complete %>%
+  filter(CHR == 11) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+gwas_threshold <- -log10(5e-8)
+
+
+ggplot(chr11_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +  
+  
+  
+  # Add text labels for SNPs with -log10(P) > 4
+  geom_text(data = chr11_data %>% filter(-log10(P) > 4), 
+            aes(label = SNP), 
+            vjust = -0.5, hjust = 0.5, size = 3, check_overlap = TRUE) +
+  
+  labs(
+    title = "SNP Associations on Chromosome 11",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr10_data <- assoc_data_complete %>%
+  filter(CHR == 10) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+ggplot(chr10_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") + 
+  
+  labs(
+    title = "SNP Associations on Chromosome 10",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr9_data <- assoc_data_complete %>%
+  filter(CHR == 9) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr9_data_to_label <- chr9_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr9_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 9",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr9_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr8_data <- assoc_data_complete %>%
+  filter(CHR == 8) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr8_data_to_label <- chr8_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr8_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 8",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr8_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr7_data <- assoc_data_complete %>%
+  filter(CHR == 7) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr7_data_to_label <- chr7_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr7_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 7",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr7_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr6_data <- assoc_data_complete %>%
+  filter(CHR == 6) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No")) 
+
+
+chr6_data_to_label <- chr6_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr6_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  # Larger points for better visibility
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  # Custom colors
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 6",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr6_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr5_data <- assoc_data_complete %>%
+  filter(CHR == 5) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr5_data_to_label <- chr5_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr5_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) + 
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 5",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr5_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr4_data <- assoc_data_complete %>%
+  filter(CHR == 4) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr4_data_to_label <- chr4_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr4_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 4",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr4_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr3_data <- assoc_data_complete %>%
+  filter(CHR == 3) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No")) 
+
+chr3_data_to_label <- chr3_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr3_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 3",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr3_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr2_data <- assoc_data_complete %>%
+  filter(CHR == 2) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))  
+
+
+chr2_data_to_label <- chr2_data %>%
+  filter(-log10(P) > 4)
+
+
+ggplot(chr2_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) +  
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 2",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  geom_text(data = chr2_data_to_label, aes(label = SNP), 
+            size = 3, vjust = -0.5, color = "black")
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+chr1_data <- assoc_data_complete %>%
+  filter(CHR == 1) %>%
+  mutate(Significant = ifelse(P < 0.05, "Yes", "No"))
+
+
+chr1_labels <- chr1_data %>% filter(-log10(P) > 4)
+
+
+ggplot(chr1_data, aes(x = BP, y = -log10(P), color = Significant)) +
+  geom_point(alpha = 0.8, size = 1.5) + 
+  scale_color_manual(values = c("No" = "gray", "Yes" = "red")) +  
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +   
+  labs(
+    title = "SNP Associations on Chromosome 1",
+    x = "Genomic Position (BP)",
+    y = expression(-log[10](P))
+  ) +
+  geom_text(data = chr1_labels, aes(label = SNP), vjust = -1, size = 3, color = "black") +  
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+
+```
+```{r}
+
+Greater_than_4 <- assoc_data_complete %>%
+  filter(-log10(P) > 4)
+
+head(Greater_than_4)
+
+```
+```{r}
+
+top_10_snps <- assoc_data_complete %>%
+  arrange(desc(-log10(P))) %>%
+  slice_head(n = 10)
+
+
+head(top_10_snps)
+
+```
+
+```{r}
+
+library(qqman)
+qq(PLINK_assoc_data$P, main = "QQ Plot of P-Values")
+
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+sorted_pvals <- sort(PLINK_assoc_data$FDR)
+theoretical_quantiles <- -log10((1:length(sorted_pvals)) / (length(sorted_pvals) + 1))
+
+
+ggplot(data = data.frame(observed = -log10(sorted_pvals), theoretical = theoretical_quantiles), 
+       aes(x = theoretical, y = observed)) +
+  geom_point(alpha = 0.8) +  # Scatter plot
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") + 
+  labs(title = "QQ Plot for FDR-adjusted p-values",
+       x = "Theoretical Quantiles",
+       y = expression(-log[10](p))) +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(PLINK_assoc_data, aes(x = FDR)) +
+  geom_histogram(binwidth = 0.01, fill = "green", color = "black") +
+  labs(
+    title = "Distribution of FDR Values",
+    x = "FDR",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+
+snps <- top_10_snps$SNP
+head(snps)
+
+
+```
+
+```{r}
+library(ggplot2)
+library(data.table)
+
+
+pca_data <- fread("pca_results.eigenvec", header = FALSE)
+
+colnames(pca_data) <- c("FID", "IID", paste0("PC", 1:(ncol(pca_data) - 2)))
+
+head(pca_data)
+
+```
+```{r}
+ggplot(pca_data, aes(x = PC1, y = PC2, color = as.factor(FID))) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "PCA Plot of Genomes - major population structure",
+       x = "Principal Component 1",
+       y = "Principal Component 2",
+       color = "FID") +
+  theme(legend.position = "right")
+
+```
+```{r}
+ggplot(pca_data, aes(x = PC3, y = PC4, color = as.factor(FID))) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "PCA Plot of Genomes - additional stratification",
+       x = "Principal Component 1",
+       y = "Principal Component 4",
+       color = "FID") +
+  theme(legend.position = "right")
+
+```
+
+```{r}
+
+pheno_data <- fread("qc-exome.fam", header = FALSE)
+colnames(pheno_data) <- c("FID", "IID", "PAT", "MAT", "SEX", "PHENO")
+
+
+pca_pheno <- merge(pca_data, pheno_data[, c("FID", "IID", "PHENO")], by = c("FID", "IID"))
+
+
+ggplot(pca_pheno, aes(x = PC1, y = PC2, color = as.factor(PHENO))) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "PCA Plot Colored by Phenotype",
+       x = "Principal Component 1",
+       y = "Principal Component 2",
+       color = "Phenotype") +
+  theme(legend.position = "right")
+
+```
+
+##### 34 loci from paper analysis with the PLINK results from PRYSMs 
+
+```{r}
+library(dplyr)
+library(readr)
+
+#plink_results  <- read.csv("/Users/alexisjimenez/Desktop/qc_assoc_results.assoc.csv", header = TRUE)
+#colnames(plink_results)
+
+snp_list <- c("rs7903146", "rs10811661", "rs7754840", "rs1801282", "rs1111875",
+              "rs1470579", "rs5219", "rs13266634", "rs7578597", "rs1552224",
+              "rs10923931", "rs11708067", "rs10010131", "rs4747969", "rs7578326",
+              "rs13292136", "rs864745", "rs757210", "rs1531343", "rs4607103",
+              "rs7961581", "rs10830963", "rs243021", "rs231362", "rs4457053",
+              "rs340874", "rs917793", "rs972283", "rs8042680", "rs7957197",
+              "rs2191349", "rs780094", "rs896854", "rs11634397")
+
+
+loci_paper_matched_snps <- plink_results %>% filter(SNP %in% snp_list)
+
+
+num_matching_snps <- nrow(loci_paper_matched_snps)
+cat("Number of matching SNPs found in PLINK results:", num_matching_snps, "\n")
+
+write_csv(loci_paper_matched_snps, "~/Desktop/matched_snps_results.csv")
+
+
+
+```
+Analysis of 20 matched 
+
+```{r}
+summary(loci_paper_matched_snps)
+
+```
+```{r}
+loci_paper_highly_significant_snps <- loci_paper_matched_snps %>% filter(P < 1e-2)
+print(loci_paper_highly_significant_snps)
+
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(loci_paper_matched_snps, aes(x = log(OR), y = -log10(P))) +
+  geom_point(alpha=0.5) + 
+  geom_point(data=loci_paper_matched_snps, aes(x=log(OR), y=-log10(P)), color="red", size=3) +  
+  theme_minimal() +
+  labs(title="Volcano Plot: Overlapping SNPs",
+       x="Odds Ratio (OR)",
+       y="-log10(P-value)")
+
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(plink_results, aes(x = log(OR), y = -log10(P))) +
+  geom_point(alpha=0.5) +  # Background points
+  geom_point(data=loci_paper_matched_snps, aes(x=log(OR), y=-log10(P)), color="steelblue", size=3) + 
+  theme_minimal() +
+  labs(title="Volcano Plot: Effect Size vs. Significance",
+       x="Log Odds Ratio (Effect Size)",
+       y="-log10(P-value)")
+
+
+```
+
+```{r}
+ggplot(loci_paper_matched_snps, aes(x=factor(CHR))) +
+  geom_bar(fill="steelblue") +
+  theme_minimal() +
+  labs(title="SNP Distribution per Chromosome",
+       x="Chromosome",
+       y="Count of SNPs")
+
+```
+
+```{r}
+ggplot(loci_paper_matched_snps, aes(x=F_A, y=F_U)) +
+  geom_point(alpha=0.5, color="steelblue") +
+  theme_minimal() +
+  labs(title="Allele Frequency: Cases vs. Controls",
+       x="Frequency in Affected (F_A)",
+       y="Frequency in Unaffected (F_U)")
+
+```
+
+```{r}
+write.csv(loci_paper_matched_snps, "~/Desktop/loci_paper_matched_SNPS.csv", row.names = FALSE)
+
+```
+

@@ -1,0 +1,153 @@
+---
+title: "PRS and outcome"
+author: "Alexis Jimenez"
+date: "2025-04-24"
+output: html_document
+---
+#knit
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/alexisjimenez/Desktop")) 
+```
+
+#load libraries
+```{r}
+library(tidyverse)
+library(vcfR)
+library(stringr)
+library(missMethods)
+```
+#laod the data 
+```{r}
+PRS<- read.csv("/Users/alexisjimenez/Desktop/DPP_HivertPRS_Prelim.csv")
+outcome <- read.csv("/Users/alexisjimenez/Desktop/DPP_2yr_DM_outcome.csv")
+ID_links<- read.csv("/Users/alexisjimenez/Desktop/DPP_IDs_linked_miRs_and_genes.csv")
+```
+
+```{r}
+# Clean the X column to keep only the part before the first underscore
+PRS$X <- sub("_.*", "", PRS$X)
+
+```
+
+#visualize data
+```{r}
+head(PRS$X)
+head(ID_links$SUBJECT_ID)
+
+```
+
+
+```{r}
+# Make sure both are character type
+PRS$X <- as.character(PRS$X)
+ID_links$SUBJECT_ID <- as.character(ID_links$SUBJECT_ID)
+
+# merge
+merged_dataset <- merge(PRS, ID_links, by.x = "X", by.y = "SUBJECT_ID")
+
+colnames(merged_dataset)
+```
+```{r}
+merged_data$RELEASE_ID <- as.character(merged_data$RELEASE_ID)
+outcome$RELEASE_ID <- as.character(outcome$RELEASE_ID)
+
+final_data <- merge(merged_data, outcome, by = "RELEASE_ID")
+
+colnames(final_data)
+```
+
+```{r}
+library(dplyr)
+final_data_genetic <- final_data %>% 
+  filter(!is.na(prs_risksum))  # Keep people who have PRS scores
+
+```
+
+```{r}
+# Load packages
+#install.packages("survminer")
+library(dplyr)
+library(survival)
+library(survminer)
+
+# Filter for people with PRS scores 
+final_data_genetic <- final_data %>%
+  filter(!is.na(prs_risksum))
+
+# Create PRS quartiles
+final_data_genetic$PRS_quartile <- cut(final_data_genetic$prs_risksum,
+                                       breaks = quantile(final_data_genetic$prs_risksum, probs = seq(0, 1, 0.25), na.rm = TRUE),
+                                       include.lowest = TRUE,
+                                       labels = c("Q1", "Q2", "Q3", "Q4"))
+
+# Create survival objects (diabetes progression or not) 
+surv_object <- Surv(time = final_data_genetic$DIABT.2, event = final_data_genetic$DIABF.2)
+
+# Cox proportional hazards model by PRS quartile (adjusting for trial arm)
+cox_model_quartiles <- coxph(surv_object ~ PRS_quartile + ASSIGN, data = final_data_genetic)
+summary(cox_model_quartiles)
+
+# Plotting survival curves by PRS quartile
+surv_fit_quartiles <- survfit(surv_object ~ PRS_quartile, data = final_data_genetic)
+
+ggsurvplot(surv_fit_quartiles, data = final_data_genetic,
+           risk.table = TRUE,
+           pval = TRUE,
+           conf.int = TRUE,
+           xlab = "Time (years)",
+           ylab = "Survival Probability (Diabetes-Free)")
+
+#Collapse PRS into 2 groups: Q1–Q3 = Low, Q4 = High
+final_data_genetic$PRS_group <- ifelse(final_data_genetic$PRS_quartile == "Q4", "High", "Low")
+
+# Cox proportional hazards model for the two groups
+cox_model_2groups <- coxph(surv_object ~ PRS_group + ASSIGN, data = final_data_genetic)
+summary(cox_model_2groups)
+
+# Plot survival curves for 2 groups
+surv_fit_2groups <- survfit(surv_object ~ PRS_group, data = final_data_genetic)
+
+ggsurvplot(surv_fit_2groups, data = final_data_genetic,
+           risk.table = TRUE,
+           pval = TRUE,
+           conf.int = TRUE,
+           xlab = "Time (years)",
+           ylab = "Survival Probability (Diabetes-Free)")
+
+
+``````
+#fixing formatting 
+```{r}
+ggsurvplot(
+  surv_fit_quartiles,
+  data = final_data_genetic,
+  risk.table = TRUE,
+  pval = TRUE,
+  conf.int = TRUE,
+  palette = "Dark2",
+  ggtheme = theme_minimal(),
+  xlab = "Time (Years)",
+  ylab = "Diabetes-Free Survival Probability",
+  legend.title = "PRS Quartile",
+  legend.labs = c("Q1", "Q2", "Q3", "Q4"),
+  risk.table.height = 0.25
+)
+
+#collapsed quartiles
+ggsurvplot(
+  surv_fit_2groups,
+  data = final_data_genetic,
+  risk.table = TRUE,
+  pval = TRUE,
+  conf.int = TRUE,
+  palette = "Set1",
+  ggtheme = theme_minimal(),
+  xlab = "Time (Years)",
+  ylab = "Diabetes-Free Survival Probability",
+  legend.title = "PRS Group",
+  legend.labs = c("Low", "High"),
+  risk.table.height = 0.25
+)
+
+```
+
